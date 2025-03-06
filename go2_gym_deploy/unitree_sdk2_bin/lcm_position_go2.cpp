@@ -1,16 +1,17 @@
 // lcm related headfile
+// LCM 的 C++ 头文件，提供了 LCM 的发布/订阅功能
 #include <lcm/lcm-cpp.hpp>
 #include "leg_control_data_lcmt.hpp"
 #include "state_estimator_lcmt.hpp"
 #include "rc_command_lcmt.hpp"
 #include "pd_tau_targets_lcmt.hpp"
-// standard headfile
+// standard headfile  标准库
 #include <iostream>
 #include <stdio.h>
 #include <stdint.h>
 #include <math.h>
 #include <cmath>
-// unitree_sdk2 related headfile
+// unitree_sdk2 related headfile Unitree SDK2 相关  LCM通信的发布订阅 底层状态和命令数据结构 解析遥控器 机器人客户端通信库  线程和时间  获取机器人状态的客户端
 #include <unitree/robot/channel/channel_publisher.hpp>
 #include <unitree/robot/channel/channel_subscriber.hpp>
 #include <unitree/idl/go2/LowState_.hpp>
@@ -21,17 +22,22 @@
 #include <unitree/common/time/time_tool.hpp>
 #include <unitree/robot/go2/robot_state/robot_state_client.hpp>
 
+// 宏定义
+// 用于发送 LowCmd 命令，控制机器人   
+// 用于接收机器人 LowState（状态反馈）
+// 用于接收无线遥控器的状态信息
 #define TOPIC_LOWCMD "rt/lowcmd"
 #define TOPIC_LOWSTATE "rt/lowstate"
 #define TOPIC_JOYSTICK "rt/wirelesscontroller"
 
 // 为保证项目代码的稳定性和易理解，没有采用unitree_sdk2中采用的using namespace语句
-
+// constexpr 关键字表示 常量表达式，即该值在编译期即可确定
+// 机器人电机的停止标志
 constexpr double PosStopF = (2.146E+9f);
 constexpr double VelStopF = (16000.0f);
 
 
-// 无需更改：Unitree 提供的电机校验函数
+// 无需更改：Unitree 提供的电机校验函数  确保电机控制命令在传输过程中没有被篡改或损坏
 uint32_t crc32_core(uint32_t* ptr, uint32_t len)
 {   
     unsigned int xbit = 0;
@@ -66,6 +72,7 @@ uint32_t crc32_core(uint32_t* ptr, uint32_t len)
 
 
 // 遥控器键值联合体，摘自unitree_sdk2，无需更改
+// C++ 位域按定义顺序从低位开始排列
 typedef union
 {
   struct
@@ -91,6 +98,20 @@ typedef union
 } xKeySwitchUnion;
 
 
+/*
+定义了一个 Custom 类，主要用于机器人控制
+Init()：初始化机器人。
+InitLowCmd()：初始化低级控制命令。
+Loop()：主循环函数，通常用于控制机器人行为的执行。
+LowStateMessageHandler()：处理**低级状态（LowState）**消息。
+JoystickHandler()：处理**无线控制器（Joystick）**消息。
+InitRobotStateClient()：初始化机器人状态客户端，用于与机器人进行通信。
+activateService()：激活指定的服务（serviceName）。
+queryServiceStatus()：查询指定服务的状态。
+lcm_send()：发送 LCM 消息。
+lcm_receive()：接收 LCM 消息。
+lcm_receive_Handler()：具体处理 LCM 接收到的消息。
+*/
 class Custom
 {
 public:
@@ -110,6 +131,28 @@ public:
     void LowCmdWrite();
     void SetNominalPose();
     int queryServiceStatus(const std::string& serviceName);
+    /*
+    leg_control_data_lcmt：存储机器人腿部控制信息。
+    state_estimator_lcmt：存储机器人估计的状态信息。
+    pd_tau_targets_lcmt：存储关节命令数据。
+    rc_command_lcmt：存储无线控制器数据。
+    low_state：机器人低级状态信息。
+    low_cmd：机器人低级控制命令。
+    joystick：无线控制器信息。
+    rsc：用于和机器人获取状态信息的客户端
+    lowcmd_publisher：用于发布低级控制命令（LowCmd）。
+    lowstate_subscriber：用于订阅低级状态信息（LowState）。
+    joystick_suber：用于订阅无线控制器信息。
+    lc：LCM（Lightweight Communications and Marshalling）对象，用于通信
+    key：按键开关的状态。
+    mode：机器人当前模式。
+    motiontime：运动时间计数器。
+    dt = 0.002：控制周期（2ms）。
+    _firstRun：表示是否是第一次运行。
+    LcmSendThreadPtr：用于发送 LCM 消息的线程。
+    LcmRecevThreadPtr：用于接收 LCM 消息的线程。
+    lowCmdWriteThreadPtr：用于发送底层控制命令的线程。
+    */
 
     leg_control_data_lcmt leg_control_lcm_data = {0};
     state_estimator_lcmt body_state_simple = {0};
@@ -139,13 +182,14 @@ public:
     unitree::common::ThreadPtr lowCmdWriteThreadPtr;
 
 };
-
+// 用于初始化机器人状态客户端
 void Custom::InitRobotStateClient()
 {
     rsc.SetTimeout(5.0f); 
     rsc.Init();
 }
 
+// 该函数查询指定服务（serviceName）的状态，返回其状态值（1 为激活，0 为未激活）
 int Custom::queryServiceStatus(const std::string& serviceName)
 {
     std::vector<unitree::robot::go2::ServiceState> serviceStateList;
@@ -194,6 +238,11 @@ void Custom::JoystickHandler(const void *message)
 // -------------------------------------------------------------------------------
 // 线程 1 ： lcm send 线程
 // 此线程作用：实时通过unitree_sdk2读取low_state信号和joystick信号，并发送给lcm中间件
+/*
+"leg_control_data"：发布机器人腿部控制数据。
+"state_estimator_data"：发布机器人状态估计数据。
+"rc_command"：发布遥控器命令数据。
+*/
 void Custom::lcm_send(){
     // leg_control_lcm_data
     for (int i = 0; i < 12; i++)
@@ -373,6 +422,11 @@ void Custom::LowCmdWrite(){
         {   
             
             // sleep(0.1);
+            /*
+            如果同时按下了 L2 和 B，退出程序。
+            如果按下 L2 和 A，激活“运动模式”（sport_mode）服务并退出。
+            如果按下 L2 和 Y，切换到“步态模式” (Walk These Ways)，并打印相关的通信信
+            */
 
             if (((int)key.components.B==1 && (int)key.components.L2==1) ) {
                 // [L2+B] is pressed again
@@ -445,7 +499,7 @@ void Custom::Init(){
     /*create low_state dds subscriber*/
     lowstate_subscriber.reset(new unitree::robot::ChannelSubscriber<unitree_go::msg::dds_::LowState_>(TOPIC_LOWSTATE));
     lowstate_subscriber->InitChannel(std::bind(&Custom::LowStateMessageHandler, this, std::placeholders::_1), 1);
-    /*create joystick dds subscriber*/
+    /*create joystick dds subscriber  手柄 */
     joystick_suber.reset(new unitree::robot::ChannelSubscriber<unitree_go::msg::dds_::WirelessController_>(TOPIC_JOYSTICK));
     joystick_suber->InitChannel(std::bind(&Custom::JoystickHandler, this, std::placeholders::_1), 1);
 }
@@ -453,7 +507,7 @@ void Custom::Init(){
 
 void Custom::Loop(){
     // 新增线程可以实现loop function的功能
-
+    // Custom::Loop() 函数启动了三个独立的线程来处理不同的任务。
     // intervalMicrosec : 1微秒 = 0.000001秒
     // 当dt=0.002s
     // ntervalMicrosec = 2000us
@@ -464,7 +518,7 @@ void Custom::Loop(){
     /*low command write thread*/
     lowCmdWriteThreadPtr = unitree::common::CreateRecurrentThreadEx("dds_write_thread", UT_CPU_ID_NONE, dt*1e6, &Custom::LowCmdWrite, this);
 }
-
+// 初始化和启动一个与 Unitree 机器人进行通信的程序
 int main(int argc, char **argv)
 {
     if (argc < 2)
