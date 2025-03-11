@@ -57,7 +57,7 @@ def load_and_run_policy(label, experiment_name, max_vel=1.0, max_yaw_vel=1.0):
         max_steps = 10000000
     print(f'max steps {max_steps}')
 
-    deployment_runner.run(max_steps=max_steps, logging=True)
+    deployment_runner.run(max_steps=max_steps, logging=True)  # 开始实际的实验运行
 
 def load_policy(logdir):
     # try ------------------

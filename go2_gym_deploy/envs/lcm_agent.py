@@ -33,7 +33,7 @@ class LCMAgent():
         if not isinstance(cfg, dict):
             cfg = class_to_dict(cfg)
         self.cfg = cfg
-        self.se = se
+        self.se = se  # State Estimator（状态估计器）
         self.command_profile = command_profile
 
         self.dt = self.cfg["control"]["decimation"] * self.cfg["sim"]["dt"]
@@ -43,7 +43,7 @@ class LCMAgent():
         self.num_envs = 1
         self.num_privileged_obs = self.cfg["env"]["num_privileged_obs"]
         self.num_actions = self.cfg["env"]["num_actions"]
-        self.num_commands = self.cfg["commands"]["num_commands"]
+        self.num_commands = self.cfg["commands"]["num_commands"]  # 机器人接受的命令维度
         self.device = 'cpu'
 
         if "obs_scales" in self.cfg.keys():
@@ -51,6 +51,7 @@ class LCMAgent():
         else:
             self.obs_scales = self.cfg["normalization"]["obs_scales"]
 
+        # 控制命令缩放
         self.commands_scale = np.array(
             [self.obs_scales["lin_vel"], self.obs_scales["lin_vel"],
              self.obs_scales["ang_vel"], self.obs_scales["body_height_cmd"], 1, 1, 1, 1, 1,
@@ -194,7 +195,7 @@ class LCMAgent():
         self.joint_pos_target[[0, 3, 6, 9]] *= self.cfg["control"]["hip_scale_reduction"]
         # self.joint_pos_target[[0, 3, 6, 9]] *= -1
         self.joint_pos_target = self.joint_pos_target
-        self.joint_pos_target += self.default_dof_pos
+        self.joint_pos_target += self.default_dof_pos  # 偏移量+默认关节角度
         joint_pos_target = self.joint_pos_target[self.joint_idxs]
         self.joint_vel_target = np.zeros(12)
         # print(f'cjp {self.joint_pos_target}')
@@ -211,7 +212,7 @@ class LCMAgent():
         if hard_reset:
             command_for_robot.id = -1
 
-
+        # 计算控制力矩  没有直接用于 command_for_robot，可能是仅用于监测或记录
         self.torques = (self.joint_pos_target - self.dof_pos) * self.p_gains + (self.joint_vel_target - self.dof_vel) * self.d_gains
         # 由lcm将神经网络输出的action传入c++ sdk
         lc.publish("pd_plustau_targets", command_for_robot.encode())
@@ -229,7 +230,7 @@ class LCMAgent():
         clip_actions = self.cfg["normalization"]["clip_actions"]
         self.last_actions = self.actions[:]
         self.actions = torch.clip(actions[0:1, :], -clip_actions, clip_actions)
-        self.publish_action(self.actions, hard_reset=hard_reset)
+        self.publish_action(self.actions, hard_reset=hard_reset)  # 由lcm将神经网络输出的action传入c++ sdk
         time.sleep(max(self.dt - (time.time() - self.time), 0))
         if self.timestep % 100 == 0: print(f'frq: {1 / (time.time() - self.time)} Hz')
         self.time = time.time()
@@ -280,24 +281,17 @@ class LCMAgent():
         #         images[k] = None
         #print(self.commands)
 
-        infos = {"joint_pos": self.dof_pos[np.newaxis, :],
-                 "joint_vel": self.dof_vel[np.newaxis, :],
-                 "joint_pos_target": self.joint_pos_target[np.newaxis, :],
-                 "joint_vel_target": self.joint_vel_target[np.newaxis, :],
-                 "body_linear_vel": self.body_linear_vel[np.newaxis, :],
-                 "body_angular_vel": self.body_angular_vel[np.newaxis, :],
-                 "contact_state": self.contact_state[np.newaxis, :],
-                 "clock_inputs": self.clock_inputs[np.newaxis, :],
-                 "body_linear_vel_cmd": self.commands[:, 0:2],
-                 "body_angular_vel_cmd": self.commands[:, 2:],
-                 "privileged_obs": None,
-                #  -------------------------------------------
-                #  "camera_image_front": images['front'],
-                #  "camera_image_bottom": images['bottom'],
-                #  "camera_image_rear": images['rear'],
-                #  "camera_image_left": images['left'],
-                #  "camera_image_right": images['right'],
-                 }
+        infos = {
+            "joint_pos": self.dof_pos[np.newaxis, :],  # 关节位置
+            "joint_vel": self.dof_vel[np.newaxis, :],  # 关节速度
+            "joint_pos_target": self.joint_pos_target[np.newaxis, :],  # 目标关节位置
+            "joint_vel_target": self.joint_vel_target[np.newaxis, :],  # 目标关节速度
+            "body_linear_vel": self.body_linear_vel[np.newaxis, :],  # 机身线速度
+            "body_angular_vel": self.body_angular_vel[np.newaxis, :],  # 机身角速度
+            "contact_state": self.contact_state[np.newaxis, :],  # 足端接触状态
+            "clock_inputs": self.clock_inputs[np.newaxis, :],  # 步态时钟信号
+            "privileged_obs": None  # 可能是一个高级观察变量（这里为空）
+        }
 
         self.timestep += 1
         return obs, None, None, infos

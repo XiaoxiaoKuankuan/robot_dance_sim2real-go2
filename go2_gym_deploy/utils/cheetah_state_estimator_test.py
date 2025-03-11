@@ -8,9 +8,6 @@ import numpy as np
 from go2_gym_deploy.lcm_types.leg_control_data_lcmt import leg_control_data_lcmt
 from go2_gym_deploy.lcm_types.rc_command_lcmt import rc_command_lcmt
 from go2_gym_deploy.lcm_types.state_estimator_lcmt import state_estimator_lcmt
-# 不调用相机 !!!
-# from go1_gym_deploy.lcm_types.camera_message_lcmt import camera_message_lcmt
-# from go1_gym_deploy.lcm_types.camera_message_rect_wide import camera_message_rect_wide
 
 # 将四元数（quaternion）转换为欧拉角（Roll, Pitch, Yaw，简称 RPY）
 def get_rpy_from_quaternion(q):
@@ -19,6 +16,7 @@ def get_rpy_from_quaternion(q):
     p = np.arcsin(2 * (w * y - z * x))
     y = np.arctan2(2 * (w * z + x * y), 1 - 2 * (y ** 2 + z ** 2))
     return np.array([r, p, y])
+
 
 # 根据欧拉角计算旋转矩阵
 def get_rotation_matrix_from_rpy(rpy):
@@ -50,12 +48,12 @@ def get_rotation_matrix_from_rpy(rpy):
 
 
 class StateEstimator:
-    def __init__(self, lc, use_cameras=False): # defaul use_cameras=True
-        
+    def __init__(self, lc, use_cameras=False):  # defaul use_cameras=True
+
         # 这里腿的顺序为什么要转换？
         # reverse legs
         self.joint_idxs = [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8]
-        self.contact_idxs = [1, 0, 3, 2]
+
         # self.joint_idxs = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 
         self.lc = lc
@@ -79,9 +77,7 @@ class StateEstimator:
         self.body_ang_vel = np.zeros(3)
         self.smoothing_ratio = 0.2
 
-        self.contact_state = np.ones(4)
-
-        self.mode = 1   # 0
+        self.mode = 0
         self.ctrlmode_left = 0
         self.ctrlmode_right = 0
         self.left_stick = [0, 0]
@@ -99,31 +95,15 @@ class StateEstimator:
         self.right_lower_left_switch_pressed = 0
         self.right_lower_right_switch_pressed = 0
 
-        # default trotting gait
-        self.cmd_freq = 3.0
-        self.cmd_phase = 0.5
-        self.cmd_offset = 0.0
-        self.cmd_duration = 0.5
-
-
         self.init_time = time.time()
         self.received_first_legdata = False
-
+        # 使用 LCM订阅不同的消息通道，并指定回调函数来处理接收到的消息
+        # 这段代码使用 LCM 订阅了 IMU、腿部控制、遥控指令 三个频道。
+        # 每个订阅都会在收到数据时 自动调用回调函数 进行处理。
+        # 这是一种 事件驱动 的通信模式
         self.imu_subscription = self.lc.subscribe("state_estimator_data", self._imu_cb)
         self.legdata_state_subscription = self.lc.subscribe("leg_control_data", self._legdata_cb)
         self.rc_command_subscription = self.lc.subscribe("rc_command", self._rc_command_cb)
-# --------------------------------------------------------------
-        # if use_cameras:
-        #     for cam_id in [1, 2, 3, 4, 5]:
-        #         self.camera_subscription = self.lc.subscribe(f"camera{cam_id}", self._camera_cb)
-        #     self.camera_names = ["front", "bottom", "left", "right", "rear"]
-        #     for cam_name in self.camera_names:
-        #         self.camera_subscription = self.lc.subscribe(f"rect_image_{cam_name}", self._rect_camera_cb)
-        self.camera_image_left = None
-        self.camera_image_right = None
-        self.camera_image_front = None
-        self.camera_image_bottom = None
-        self.camera_image_rear = None
 
         self.body_loc = np.array([0, 0, 0])
         self.body_quat = np.array([0, 0, 0, 1])
@@ -134,15 +114,13 @@ class StateEstimator:
 
     def get_body_angular_vel(self):
         self.body_ang_vel = self.smoothing_ratio * np.mean(self.deuler_history / self.dt_history, axis=0) + (
-                    1 - self.smoothing_ratio) * self.body_ang_vel
+                1 - self.smoothing_ratio) * self.body_ang_vel
         return self.body_ang_vel
 
     def get_gravity_vector(self):
         grav = np.dot(self.R.T, np.array([0, 0, -1]))
         return grav
 
-    def get_contact_state(self):
-        return self.contact_state[self.contact_idxs]
 
     def get_rpy(self):
         return self.euler
@@ -152,11 +130,9 @@ class StateEstimator:
         MODES_RIGHT = ["step_frequency", "footswing_height", "body_pitch"]  # 控制步频、足摆高度和身体俯仰角
 
         if self.left_upper_switch_pressed:
-            # 当 self.left_upper_switch_pressed 触发时，左侧模式 ctrlmode_left 依次切换 0 → 1 → 2 → 0
             self.ctrlmode_left = (self.ctrlmode_left + 1) % 3
             self.left_upper_switch_pressed = False
         if self.right_upper_switch_pressed:
-            # 当 self.right_upper_switch_pressed 触发时，右侧模式 ctrlmode_right 依次切换 0 → 1 → 2 → 0
             self.ctrlmode_right = (self.ctrlmode_right + 1) % 3
             self.right_upper_switch_pressed = False
 
@@ -164,8 +140,8 @@ class StateEstimator:
         MODE_RIGHT = MODES_RIGHT[self.ctrlmode_right]
 
         # always in use
-        cmd_x = 1 * self.left_stick[1]  # 左摇杆前后控制 x 方向速度
-        cmd_yaw = -1 * self.right_stick[0]  # 右摇杆左右控制偏航角速度
+        cmd_x = 1 * self.left_stick[1]
+        cmd_yaw = -1 * self.right_stick[0]
 
         # default values
         cmd_y = 0.  # -1 * self.left_stick[0]
@@ -193,28 +169,28 @@ class StateEstimator:
         elif MODE_RIGHT == "body_pitch":
             cmd_ori_pitch = -0.4 * self.right_stick[1]
 
-        # gait buttons
-        if self.mode == 0: # Press Button 'A' -> 'Bound'
+        # gait buttons  换成我们的模型，按键应该是改这里 不同的按键代表不同的模型
+        if self.mode == 0:  # Press Button 'A' -> 'Bound'
             self.cmd_phase = 0.5
             self.cmd_offset = 0.0
             self.cmd_bound = 0.0
             self.cmd_duration = 0.5
-        elif self.mode == 1: # Press Button 'B' -> 'Trot'
+        elif self.mode == 1:  # Press Button 'B' -> 'Trot'
             self.cmd_phase = 0.0
             self.cmd_offset = 0.0
             self.cmd_bound = 0.0
             self.cmd_duration = 0.5
-        elif self.mode == 2: # Press Button 'X' -> 'Pace'
+        elif self.mode == 2:  # Press Button 'X' -> 'Pace'
             self.cmd_phase = 0.0
             self.cmd_offset = 0.5
             self.cmd_bound = 0.0
             self.cmd_duration = 0.5
-        elif self.mode == 3: # Press Button 'Y' -> 'Pronk'
+        elif self.mode == 3:  # Press Button 'Y' -> 'Pronk'
             self.cmd_phase = 0.0
             self.cmd_offset = 0.0
             self.cmd_bound = 0.5
             self.cmd_duration = 0.5
-        else: # Default Gait -> 'Trot'
+        else:  # Default Gait -> 'Trot'
             self.cmd_phase = 0.0
             self.cmd_offset = 0.0
             self.cmd_bound = 0.0
@@ -225,7 +201,8 @@ class StateEstimator:
                          cmd_stance_length, 0, 0, 0, 0, 0])
 
     def get_buttons(self):
-        return np.array([self.left_lower_left_switch, self.left_upper_switch, self.right_lower_right_switch, self.right_upper_switch])
+        return np.array([self.left_lower_left_switch, self.left_upper_switch, self.right_lower_right_switch,
+                         self.right_upper_switch])
 
     def get_dof_pos(self):
         # print("dofposquery", self.joint_pos[self.joint_idxs])
@@ -246,21 +223,7 @@ class StateEstimator:
     def get_body_quat(self):
         return np.array(self.body_quat)
 
-    def get_camera_front(self):
-        return self.camera_image_front
-
-    def get_camera_bottom(self):
-        return self.camera_image_bottom
-
-    def get_camera_rear(self):
-        return self.camera_image_rear
-
-    def get_camera_left(self):
-        return self.camera_image_left
-
-    def get_camera_right(self):
-        return self.camera_image_right
-
+    # 三个 LCM 订阅回调函数
     def _legdata_cb(self, channel, data):
         # print("update legdata")
         if not self.received_first_legdata:
@@ -269,9 +232,9 @@ class StateEstimator:
 
         msg = leg_control_data_lcmt.decode(data)
         # print(msg.q)
-        self.joint_pos = np.array(msg.q)
-        self.joint_vel = np.array(msg.qd)
-        self.tau_est = np.array(msg.tau_est)
+        self.joint_pos = np.array(msg.q)  # 关节位置
+        self.joint_vel = np.array(msg.qd)  # 关节速度
+        self.tau_est = np.array(msg.tau_est)  # 估算的关节力矩
         # print(f"update legdata {msg.id}")
 
     def _imu_cb(self, channel, data):
@@ -280,32 +243,36 @@ class StateEstimator:
 
         self.euler = np.array(msg.rpy)
 
-        self.R = get_rotation_matrix_from_rpy(self.euler)
+        self.R = get_rotation_matrix_from_rpy(self.euler)  # # 计算旋转矩阵
 
         self.contact_state = 1.0 * (np.array(msg.contact_estimate) > 200)
 
-        self.deuler_history[self.buf_idx % self.smoothing_length, :] = msg.rpy - self.euler_prev
-        self.dt_history[self.buf_idx % self.smoothing_length] = time.time() - self.timuprev
+        self.deuler_history[self.buf_idx % self.smoothing_length, :] = msg.rpy - self.euler_prev  # 存储 欧拉角变化量
+        self.dt_history[self.buf_idx % self.smoothing_length] = time.time() - self.timuprev # 存储 时间间隔
 
         self.timuprev = time.time()
 
         self.buf_idx += 1
         self.euler_prev = np.array(msg.rpy)
 
-    def _sensor_cb(self, channel, data):
-        pass
+
 
     def _rc_command_cb(self, channel, data):
 
         msg = rc_command_lcmt.decode(data)
 
-
-        self.left_upper_switch_pressed = ((msg.left_upper_switch and not self.left_upper_switch) or self.left_upper_switch_pressed)
-        self.left_lower_left_switch_pressed = ((msg.left_lower_left_switch and not self.left_lower_left_switch) or self.left_lower_left_switch_pressed)
-        self.left_lower_right_switch_pressed = ((msg.left_lower_right_switch and not self.left_lower_right_switch) or self.left_lower_right_switch_pressed)
-        self.right_upper_switch_pressed = ((msg.right_upper_switch and not self.right_upper_switch) or self.right_upper_switch_pressed)
-        self.right_lower_left_switch_pressed = ((msg.right_lower_left_switch and not self.right_lower_left_switch) or self.right_lower_left_switch_pressed)
-        self.right_lower_right_switch_pressed = ((msg.right_lower_right_switch and not self.right_lower_right_switch) or self.right_lower_right_switch_pressed)
+        self.left_upper_switch_pressed = (
+                    (msg.left_upper_switch and not self.left_upper_switch) or self.left_upper_switch_pressed)
+        self.left_lower_left_switch_pressed = ((
+                                                           msg.left_lower_left_switch and not self.left_lower_left_switch) or self.left_lower_left_switch_pressed)
+        self.left_lower_right_switch_pressed = ((
+                                                            msg.left_lower_right_switch and not self.left_lower_right_switch) or self.left_lower_right_switch_pressed)
+        self.right_upper_switch_pressed = (
+                    (msg.right_upper_switch and not self.right_upper_switch) or self.right_upper_switch_pressed)
+        self.right_lower_left_switch_pressed = ((
+                                                            msg.right_lower_left_switch and not self.right_lower_left_switch) or self.right_lower_left_switch_pressed)
+        self.right_lower_right_switch_pressed = ((
+                                                             msg.right_lower_right_switch and not self.right_lower_right_switch) or self.right_lower_right_switch_pressed)
 
         self.mode = msg.mode
         self.right_stick = msg.right_stick
@@ -319,66 +286,7 @@ class StateEstimator:
 
         # print(self.right_stick, self.left_stick)
 
-# 是否要删除下面的camera相关函数？
-# --------------------------------------------------
-    # def _camera_cb(self, channel, data):
-    #     msg = camera_message_lcmt.decode(data)
-
-    #     img = np.fromstring(msg.data, dtype=np.uint8)
-    #     img = img.reshape((3, 200, 464)).transpose(1, 2, 0)
-
-    #     cam_id = int(channel[-1])
-    #     if cam_id == 1:
-    #         self.camera_image_front = img
-    #     elif cam_id == 2:
-    #         self.camera_image_bottom = img
-    #     elif cam_id == 3:
-    #         self.camera_image_left = img
-    #     elif cam_id == 4:
-    #         self.camera_image_right = img
-    #     elif cam_id == 5:
-    #         self.camera_image_rear = img
-    #     else:
-    #         print("Image received from camera with unknown ID#!")
-
-    #     #im = Image.fromarray(img).convert('RGB')
-
-    #     #im.save("test_image_" + channel + ".jpg")
-    #     #print(channel)
-            
-    # def _rect_camera_cb(self, channel, data):
-    #     message_types = [camera_message_rect_wide, camera_message_rect_wide, camera_message_rect_wide,
-    #                      camera_message_rect_wide, camera_message_rect_wide]
-    #     image_shapes = [(116, 100, 3), (116, 100, 3), (116, 100, 3), (116, 100, 3), (116, 100, 3)]
-
-    #     cam_name = channel.split("_")[-1]
-    #     # print(f"received py from {cam_name}")
-    #     cam_id = self.camera_names.index(cam_name) + 1
-
-    #     msg = message_types[cam_id - 1].decode(data)
-
-    #     img = np.fromstring(msg.data, dtype=np.uint8)
-    #     img = np.flip(np.flip(
-    #         img.reshape((image_shapes[cam_id - 1][2], image_shapes[cam_id - 1][1], image_shapes[cam_id - 1][0])),
-    #         axis=0), axis=1).transpose(1, 2, 0)
-    #     # print(img.shape)
-    #     # img = np.flip(np.flip(img.reshape(image_shapes[cam_id - 1]), axis=0), axis=1)[:, :,
-    #     #       [2, 1, 0]]  # .transpose(1, 2, 0)
-
-    #     if cam_id == 1:
-    #         self.camera_image_front = img
-    #     elif cam_id == 2:
-    #         self.camera_image_bottom = img
-    #     elif cam_id == 3:
-    #         self.camera_image_left = img
-    #     elif cam_id == 4:
-    #         self.camera_image_right = img
-    #     elif cam_id == 5:
-    #         self.camera_image_rear = img
-    #     else:
-    #         print("Image received from camera with unknown ID#!")
-# --------------------------------------------------
-            
+    # --------------------------------------------------
 
     def poll(self, cb=None):
         t = time.time()
