@@ -80,8 +80,6 @@ class DeploymentRunner:
                 for target in target_sequence:
                     next_target = target
 
-                    action_scale = 0.25
-                    next_target = next_target / action_scale
                     cal_action[:, 0:12] = next_target
                     agent.step(torch.from_numpy(cal_action))
                     agent.get_obs()
@@ -142,7 +140,6 @@ class DeploymentRunner:
                     self.calibrate(wait=False, low=True)
 
                 # check for logging command
-                prev_button_states = self.button_states[:]
                 self.button_states = self.se.get_buttons()
 
                 if self.se.left_lower_left_switch_pressed:
@@ -168,6 +165,7 @@ class DeploymentRunner:
 
 
                 if self.se.right_lower_right_switch_pressed:
+                    print("R2 IS PRESSED ？")
                     # 检查是否按下 right_lower_right_switch 按钮，如果按下，则进行校准，并等待按钮的再次按下
                     control_obs = self.calibrate(wait=False)
                     time.sleep(1)

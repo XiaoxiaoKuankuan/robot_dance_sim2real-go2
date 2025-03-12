@@ -15,10 +15,8 @@ from go2_gym_deploy.utils.cheetah_state_estimator_test import StateEstimator  # 
 lc = lcm.LCM("udpm://239.255.76.67:7667?ttl=255")
 
 
-def load_and_run_policy(label, experiment_name):
+def load_and_run_policy(experiment_name):
     # load agent
-    dirs = glob.glob(f"../../runs/{label}/*")
-    logdir = sorted(dirs)[0]
 
     se = StateEstimator(lc)
 
@@ -26,7 +24,13 @@ def load_and_run_policy(label, experiment_name):
     se.spin()
     print('Agent successfully created!')
 
-    policy = load_policy(logdir)
+    # 获取选择的模型路径
+    selected_model_path = se.get_command()
+    if selected_model_path is None:
+        print("No model selected. Exiting.")
+        return
+
+    policy = load_policy(selected_model_path)
     print('Policy successfully loaded!')
 
     # load runner
@@ -46,9 +50,8 @@ def load_and_run_policy(label, experiment_name):
     deployment_runner.run(max_steps=max_steps, logging=True)  # 开始实际的实验运行
 
 
-def load_policy(logdir):
-
-    body = torch.jit.load(logdir + '/checkpoints/body_latest.jit')
+def load_policy(model_path):
+    body = torch.jit.load(model_path )
 
     def policy(obs, info):
         action = body.forward(obs["obs_history"].to('cpu'))
@@ -59,10 +62,10 @@ def load_policy(logdir):
 
 if __name__ == '__main__':
     # label = "gait-conditioned-agility/pretrain-v0/train"
-    label = "gait-conditioned-agility/pretrain-go2/train"
+    # label = "gait-conditioned-agility/pretrain-go2/train"
 
     experiment_name = "example_experiment"
 
     # default:
     # max_vel=3.5, max_yaw_vel=5.0
-    load_and_run_policy(label, experiment_name=experiment_name)
+    load_and_run_policy(experiment_name=experiment_name)

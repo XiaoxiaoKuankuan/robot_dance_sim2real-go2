@@ -128,6 +128,8 @@ class StateEstimator:
         self.body_loc = np.array([0, 0, 0])
         self.body_quat = np.array([0, 0, 0, 1])
 
+        print(f"Initial mode: {self.mode}")
+
     def get_body_linear_vel(self):
         self.body_lin_vel = np.dot(self.R.T, self.world_lin_vel)
         return self.body_lin_vel
@@ -291,6 +293,8 @@ class StateEstimator:
 
         self.buf_idx += 1
         self.euler_prev = np.array(msg.rpy)
+         # 更新机身位置  3.12
+        self.body_loc = np.array(msg.p)  # 假设msg.p是一个包含x, y, z位置的数组
 
     def _sensor_cb(self, channel, data):
         pass

@@ -45,7 +45,7 @@ def load_and_run_policy(label, experiment_name, max_vel=1.0, max_yaw_vel=1.0):
     # load runner
     root = f"{pathlib.Path(__file__).parent.resolve()}/../../logs/"
     pathlib.Path(root).mkdir(parents=True, exist_ok=True)
-    deployment_runner = DeploymentRunner(experiment_name=experiment_name, se=None,
+    deployment_runner = DeploymentRunner(experiment_name=experiment_name, se=se,
                                          log_root=f"{root}/{experiment_name}")
     deployment_runner.add_control_agent(hardware_agent, "hardware_closed_loop")
     deployment_runner.add_policy(policy)

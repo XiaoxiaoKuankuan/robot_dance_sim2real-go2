@@ -78,7 +78,9 @@ class DeploymentRunner:
                 else:
                     final_goal = np.zeros(12)
                 nominal_joint_pos = agent.default_dof_pos
+                body_pos = self.se.get_body_loc()
                 print("Default Joint Positions:", agent.default_dof_pos)
+                print("Default body Positions:", body_pos)
 
                 print(f"About to calibrate; the robot will stand [Press R2 to calibrate]")
                 while wait:
@@ -108,8 +110,9 @@ class DeploymentRunner:
                     next_target = next_target / action_scale
                     '''
                     cal_action[:, 0:12] = next_target  # 为什么要进行缩放？  我把上面注释了
-                    agent.step(torch.from_numpy(cal_action))
-                    agent.get_obs()  # 这是不也多余？
+                    # agent.step(torch.from_numpy(cal_action))
+                    agent.reset_to_default(torch.from_numpy(cal_action))
+                    # agent.get_obs()  # 这是不也多余？
                     time.sleep(0.05)
                 print("Calibrated Joint Positions:", agent.dof_pos)
 

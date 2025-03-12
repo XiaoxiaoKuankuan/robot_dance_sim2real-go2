@@ -50,19 +50,19 @@ class LCMAgent():
                       "clip_observations": 100.,
                       "clip_actions": 2.5,
                       "action_scale": 0.25}
-        self.default_dof_pos = [0.1, 0.8, -1.5, -0.1, 0.8, -1.5, 0.1, 1., -1.5, -0.1, 1., -1.5, 0, 0, 0, 0, 0, 0, 0,
-                           0]  # LF RF LH RH
+        self.default_dof_pos = [0.1, 0.8, -1.5,
+                                -0.1, 0.8, -1.5,
+                                0.1, 0.8, -1.5,
+                                -0.1, 0.8, -1.5]  # LF RF LH RH  0.8
         joint_names = [
             "FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
             "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
             "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint",
             "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint", ]
         # 改成go2的
-        self.p_gains = [150., 150., 150., 150., 150., 150., 150., 150., 150., 150., 150., 150., 150., 150., 150., 20., 15.,
-                   10., 10., 10.]
-        self.d_gains = [2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 0.1, 0.1, 0.1, 0.1, 0.1]
+        self.p_gains = 20
+        self.d_gains = 0.5
 
-        print(f"p_gains: {self.p_gains}")
 
         self.actions = torch.zeros(12)
         self.last_actions = torch.zeros(12)
@@ -75,9 +75,7 @@ class LCMAgent():
         self.joint_vel_target = np.zeros(12)
         self.torques = np.zeros(12)
 
-        self.joint_idxs = self.se.joint_idxs
-
-        self.clock_inputs = torch.zeros(self.num_envs, 4, dtype=torch.float)
+        self.joint_idxs = self.se.joint_idxs  # RF LF RH LH
 
         self.is_currently_probing = False
 

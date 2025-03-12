@@ -187,16 +187,10 @@ class LCMAgent():
     def get_privileged_observations(self):
         return None
 
-    def publish_action(self, action, hard_reset=False):
+    def publish_action(self, joint_pos_target, hard_reset=False):
 
         command_for_robot = pd_tau_targets_lcmt()
-        self.joint_pos_target = \
-            (action[0, :12].detach().cpu().numpy() * self.cfg["control"]["action_scale"]).flatten()
-        self.joint_pos_target[[0, 3, 6, 9]] *= self.cfg["control"]["hip_scale_reduction"]
-        # self.joint_pos_target[[0, 3, 6, 9]] *= -1
-        self.joint_pos_target = self.joint_pos_target
-        self.joint_pos_target += self.default_dof_pos  # 偏移量+默认关节角度
-        joint_pos_target = self.joint_pos_target[self.joint_idxs]
+        
         self.joint_vel_target = np.zeros(12)
         # print(f'cjp {self.joint_pos_target}')
 
@@ -230,7 +224,14 @@ class LCMAgent():
         clip_actions = self.cfg["normalization"]["clip_actions"]
         self.last_actions = self.actions[:]
         self.actions = torch.clip(actions[0:1, :], -clip_actions, clip_actions)
-        self.publish_action(self.actions, hard_reset=hard_reset)  # 由lcm将神经网络输出的action传入c++ sdk
+        self.joint_pos_target = \
+            (self.actions[0, :12].detach().cpu().numpy() * self.cfg["control"]["action_scale"]).flatten()
+        self.joint_pos_target[[0, 3, 6, 9]] *= self.cfg["control"]["hip_scale_reduction"]
+        # self.joint_pos_target[[0, 3, 6, 9]] *= -1
+        self.joint_pos_target = self.joint_pos_target
+        self.joint_pos_target += self.default_dof_pos  # 偏移量+默认关节角度
+        joint_pos_target = self.joint_pos_target[self.joint_idxs]
+        self.publish_action(joint_pos_target, hard_reset=hard_reset)  # 由lcm将神经网络输出的action传入c++ sdk
         time.sleep(max(self.dt - (time.time() - self.time), 0))
         if self.timestep % 100 == 0: print(f'frq: {1 / (time.time() - self.time)} Hz')
         self.time = time.time()
@@ -263,23 +264,7 @@ class LCMAgent():
         self.clock_inputs[:, 2] = torch.sin(2 * np.pi * self.foot_indices[2])
         self.clock_inputs[:, 3] = torch.sin(2 * np.pi * self.foot_indices[3])
 
-# 注释掉了下面camera相关代码
-# --------------------------------------------------------------------
-        # images = {'front': self.se.get_camera_front(),
-        #           'bottom': self.se.get_camera_bottom(),
-        #           'rear': self.se.get_camera_rear(),
-        #           'left': self.se.get_camera_left(),
-        #           'right': self.se.get_camera_right()
-        #           }
-        # downscale_factor = 2
-        # temporal_downscale = 3
 
-        # for k, v in images.items():
-        #     if images[k] is not None:
-        #         images[k] = cv2.resize(images[k], dsize=(images[k].shape[0]//downscale_factor, images[k].shape[1]//downscale_factor), interpolation=cv2.INTER_CUBIC)
-        #     if self.timestep % temporal_downscale != 0:
-        #         images[k] = None
-        #print(self.commands)
 
         infos = {
             "joint_pos": self.dof_pos[np.newaxis, :],  # 关节位置
@@ -295,3 +280,13 @@ class LCMAgent():
 
         self.timestep += 1
         return obs, None, None, infos
+
+    def reset_to_default(self, action, hard_reset=True):
+        # 校准过程中step
+        clip_actions = self.cfg["normalization"]["clip_actions"]
+        self.last_actions = self.actions[:]
+        self.actions = torch.clip(action[0:1, :], -clip_actions, clip_actions)
+        self.joint_vel_target = np.zeros(12)
+        self.publish_action(self.joint_pos_target, hard_reset=True)
+        obs = self.get_obs()
+        return obs
