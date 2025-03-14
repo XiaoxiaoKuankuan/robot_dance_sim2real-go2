@@ -38,7 +38,11 @@ class DeploymentRunner:
             except FileExistsError:
                 continue
 
-
+    # 将一个控制代理添加到 agents 字典，并指定控制代理的名称
+    def add_control_agent(self, agent, name):
+        self.control_agent_name = name
+        self.agents[name] = agent
+        self.logger.add_robot(name, agent.env.cfg)
     def set_command_agents(self, name):
         self.command_agent = name
 
@@ -100,85 +104,3 @@ class DeploymentRunner:
 
         return control_obs
 
-
-    def run(self, num_log_steps=1000000000, max_steps=100000000, logging=True):
-        assert self.control_agent_name is not None, "cannot deploy, runner has no control agent!"
-        assert self.policy is not None, "cannot deploy, runner has no policy!"
-
-        # TODO: add basic test for comms
-
-        for agent_name in self.agents.keys():
-            obs = self.agents[agent_name].reset()
-            if agent_name == self.control_agent_name:
-                control_obs = obs
-        # 校准
-        control_obs = self.calibrate(wait=True)
-
-        # now, run control loop
-
-        try:
-            for i in range(max_steps):
-
-                policy_info = {}
-                action = self.policy(control_obs, policy_info)
-
-                for agent_name in self.agents.keys():
-                    obs, ret, done, info = self.agents[agent_name].step(action)
-
-                    info.update(policy_info)
-                    info.update({"observation": obs, "reward": ret, "done": done, "timestep": i,
-                                 "time": i * self.agents[self.control_agent_name].dt, "action": action, "rpy": self.agents[self.control_agent_name].se.get_rpy(), "torques": self.agents[self.control_agent_name].torques})
-
-                    if logging: self.logger.log(agent_name, info)
-
-                    if agent_name == self.control_agent_name:
-                        control_obs, control_ret, control_done, control_info = obs, ret, done, info
-
-                # bad orientation emergency stop
-                rpy = self.agents[self.control_agent_name].se.get_rpy()
-                if abs(rpy[0]) > 1.6 or abs(rpy[1]) > 1.6:
-                    self.calibrate(wait=False, low=True)
-
-                # check for logging command
-                self.button_states = self.se.get_buttons()
-
-                if self.se.left_lower_left_switch_pressed:
-                    # 如果按下 left_lower_left_switch 按钮，启动或停止日志记录
-                    if not self.is_currently_probing:
-                        print("START LOGGING")
-                        self.is_currently_probing = True
-                        self.agents[self.control_agent_name].set_probing(True)
-                        self.init_log_filename()
-                        self.logger.reset()
-                    else:
-                        print("SAVE LOG")
-                        self.is_currently_probing = False
-                        self.agents[self.control_agent_name].set_probing(False)
-                        # calibrate, log, and then resume control
-                        control_obs = self.calibrate(wait=False)
-                        self.logger.save(self.log_filename)
-                        self.init_log_filename()
-                        self.logger.reset()
-                        time.sleep(1)
-                        control_obs = self.agents[self.control_agent_name].reset()
-                    self.se.left_lower_left_switch_pressed = False
-
-
-                if self.se.right_lower_right_switch_pressed:
-                    print("R2 IS PRESSED ？")
-                    # 检查是否按下 right_lower_right_switch 按钮，如果按下，则进行校准，并等待按钮的再次按下
-                    control_obs = self.calibrate(wait=False)
-                    time.sleep(1)
-                    self.se.right_lower_right_switch_pressed = False
-                    # self.button_states = self.command_profile.get_buttons()
-                    while not self.se.right_lower_right_switch_pressed:
-                        time.sleep(0.01)
-                        # self.button_states = self.command_profile.get_buttons()
-                    self.se.right_lower_right_switch_pressed = False
-
-            # finally, return to the nominal pose
-            control_obs = self.calibrate(wait=False)
-            self.logger.save(self.log_filename)
-
-        except KeyboardInterrupt:
-            self.logger.save(self.log_filename)

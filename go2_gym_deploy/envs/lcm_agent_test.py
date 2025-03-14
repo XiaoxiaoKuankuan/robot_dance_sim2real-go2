@@ -104,17 +104,15 @@ class LCMAgent():
     def publish_action(self, action, hard_reset=False):
 
         command_for_robot = pd_tau_targets_lcmt()
-        self.joint_pos_target = \
+        joint_pos_target = \
             (action[0, :12].detach().cpu().numpy() * self.scales["action_scale"]).flatten()
 
-        # self.joint_pos_target[[0, 3, 6, 9]] *= -1
-        self.joint_pos_target = self.joint_pos_target   # 我们的是不是偏移量？用不用再加初始角度
-        self.joint_pos_target += self.default_dof_pos  # 偏移量+默认关节角度
-        joint_pos_target = self.joint_pos_target[self.joint_idxs]
+        joint_pos_target += self.default_dof_pos  # 偏移量+默认关节角度
+        self.joint_pos_target = joint_pos_target[self.joint_idxs]
         self.joint_vel_target = np.zeros(12)
         # print(f'cjp {self.joint_pos_target}')
 
-        command_for_robot.q_des = joint_pos_target
+        command_for_robot.q_des = self.joint_pos_target
         command_for_robot.qd_des = self.joint_vel_target
         command_for_robot.kp = self.p_gains
         command_for_robot.kd = self.d_gains

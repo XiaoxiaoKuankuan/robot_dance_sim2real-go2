@@ -57,7 +57,7 @@ class StateEstimator:
         # self.joint_idxs = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 
         self.lc = lc
-
+        self._current_model_id = 0  # 默认模型ID
         self.joint_pos = np.zeros(12)  # 关节位置
         self.joint_vel = np.zeros(12)  # 关节速度
         self.tau_est = np.zeros(12)  # 估计的关节力矩
@@ -125,30 +125,9 @@ class StateEstimator:
     def get_rpy(self):
         return self.euler
 
-    def get_command(self):
-        # ... 现有代码 ...
-
-        # 假设你有一个字典来存储按键对应的模型路径
-        model_paths = {
-            'A': '/path/to/model_A',
-            'B': '/path/to/model_B',
-            'X': '/path/to/model_X',
-            'Y': '/path/to/model_Y'
-        }
-
-        # 检查按键状态并设置模型路径
-        if self.mode == 0:  # A键
-            self.selected_model_path = model_paths['A']
-        elif self.mode == 1:  # B键
-            self.selected_model_path = model_paths['B']
-        elif self.mode == 2:  # X键
-            self.selected_model_path = model_paths['X']
-        elif self.mode == 3:  # Y键
-            self.selected_model_path = model_paths['Y']
-        else:
-            self.selected_model_path = None
-
-        return self.selected_model_path
+    def get_current_model_id(self):
+        """获取当前选择的模型ID"""
+        return self._current_model_id
 
     def get_buttons(self):
         return np.array([self.left_lower_left_switch, self.left_upper_switch, self.right_lower_right_switch,
@@ -234,6 +213,12 @@ class StateEstimator:
         self.right_lower_left_switch = msg.right_lower_left_switch
         self.right_lower_right_switch = msg.right_lower_right_switch
 
+        # 模型选择逻辑
+        if 0 <= msg.mode <= 3:  # 有效范围检查
+            new_id = int(msg.mode)
+            if new_id != self._current_model_id:
+                self._current_model_id = new_id
+                print(f"\n[Model Switch] Current Model ID: {new_id}")
         # print(self.right_stick, self.left_stick)
 
     # --------------------------------------------------
