@@ -11,16 +11,19 @@ lc = lcm.LCM("udpm://239.255.76.67:7667?ttl=255")
 
 # 配置模型路径字典
 MODEL_PATHS = {
-    0: "./models/trot_gait.jit",
-    1: "./models/bound_gait.jit",
-    2: "./models/pace_gait.jit",
-    3: "./models/pronk_gait.jit"
+    0: './model/go2/stand_2025-03-18_19-19-44.jit',
+    1: './model/go2/stand_2025-03-17_08-46-33.jit',
+    2: './model/go2/swing_2025-03-18_15-40-36.jit',
+    3: './model/go2/swing_2025-03-17_08-49-23.jit'
 }
 
 
 def load_and_run_policy(experiment_name="default_experiment"):
     # 初始化状态估计器
     se = StateEstimator(lc)
+    if not hardware_agent.is_initialized():
+        print("硬件代理初始化失败！")
+        return
 
     try:
         # 预加载所有策略模型

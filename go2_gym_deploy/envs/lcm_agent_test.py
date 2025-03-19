@@ -36,7 +36,7 @@ class LCMAgent():
         self.dt = 0.02
         self.timestep = 0
 
-        self.num_obs = 60
+        self.num_obs = 42
         self.num_actions = 12
         self.num_envs = 1
         self.device = 'cpu'
@@ -96,7 +96,7 @@ class LCMAgent():
                                 self.gravity_vector.reshape(1, -1),
                              (self.dof_pos - self.default_dof_pos).reshape(1, -1) * self.scales["dof_pos"],
                              self.dof_vel.reshape(1, -1) * self.scales["dof_vel"],
-                             self.actions
+                             self.actions.cpu().numpy().reshape(1, -1)  # 确保 actions 是 NumPy
                              ), axis=1)
 
         return torch.tensor(ob, device=self.device).float()
@@ -104,18 +104,17 @@ class LCMAgent():
     def publish_action(self, action, hard_reset=False):
 
         command_for_robot = pd_tau_targets_lcmt()
-        joint_pos_target = \
-            (action[0, :12].detach().cpu().numpy() * self.scales["action_scale"]).flatten()
+        joint_pos_target = (action[0, :12].detach().cpu().numpy() * self.scales["action_scale"]).flatten()
 
         joint_pos_target += self.default_dof_pos  # 偏移量+默认关节角度
-        self.joint_pos_target = joint_pos_target[self.joint_idxs]
+        self.joint_pos_target = joint_pos_target[self.joint_idxs]  # 调整腿顺序
         self.joint_vel_target = np.zeros(12)
         # print(f'cjp {self.joint_pos_target}')
 
         command_for_robot.q_des = self.joint_pos_target
         command_for_robot.qd_des = self.joint_vel_target
-        command_for_robot.kp = self.p_gains
-        command_for_robot.kd = self.d_gains
+        command_for_robot.kp = np.full(12, self.p_gains)
+        command_for_robot.kd = np.full(12, self.d_gains)
         command_for_robot.tau_ff = np.zeros(12)
         command_for_robot.se_contactState = np.zeros(4)
         command_for_robot.timestamp_us = int(time.time() * 10 ** 6)
@@ -136,13 +135,13 @@ class LCMAgent():
         return self.get_obs()
 
     def step(self, actions, hard_reset=False):
-        clip_actions = self.scales["clip_actions"]
+        clip_actions = self.scales["clip_actions"]/self.scales["action_scale"]
         self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
         self.last_actions = self.actions[:]
         # self.actions_scaled = self.actions * self.scales["action_scale"]
 
         self.publish_action(self.actions, hard_reset=hard_reset)  # 由lcm将神经网络输出的action传入c++ sdk
-        time.sleep(max(self.dt - (time.time() - self.time), 0))
+        time.sleep(max(self.dt - (time.time() - self.time), 0))  # 确保固定的循环频率（50Hz）
         if self.timestep % 100 == 0: print(f'frq: {1 / (time.time() - self.time)} Hz')
         self.time = time.time()
         obs = self.get_obs()

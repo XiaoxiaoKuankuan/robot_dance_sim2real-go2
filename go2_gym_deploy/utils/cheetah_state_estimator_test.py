@@ -50,7 +50,7 @@ def get_rotation_matrix_from_rpy(rpy):
 class StateEstimator:
     def __init__(self, lc, use_cameras=False):  # defaul use_cameras=True
 
-        # 这里腿的顺序为什么要转换？
+        # 这里腿的顺序为什么要转换？ 对应实物 实物是 RF LF RH LH 训练网络出来是LF RF LH  RH
         # reverse legs
         self.joint_idxs = [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8]
 
