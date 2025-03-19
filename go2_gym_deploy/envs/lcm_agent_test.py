@@ -77,12 +77,6 @@ class LCMAgent():
 
         self.joint_idxs = self.se.joint_idxs  # RF LF RH LH
 
-        self.is_currently_probing = False
-
-    def set_probing(self, is_currently_probing):
-        # 探测
-        self.is_currently_probing = is_currently_probing
-
 
     def get_obs(self):
 

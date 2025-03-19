@@ -12,8 +12,8 @@ lc = lcm.LCM("udpm://239.255.76.67:7667?ttl=255")
 # 配置模型路径字典
 MODEL_PATHS = {
     0: './model/go2/stand_2025-03-18_19-19-44.jit',
-    1: './model/go2/stand_2025-03-17_08-46-33.jit',
-    2: './model/go2/swing_2025-03-18_15-40-36.jit',
+    1: './model/go2/swing_2025-03-18_15-40-36.jit',
+    2: './model/go2/stand_2025-03-17_08-46-33.jit',
     3: './model/go2/swing_2025-03-17_08-49-23.jit'
 }
 
@@ -61,7 +61,7 @@ def load_and_run_policy(experiment_name="default_experiment"):
             if new_model_id not in policy_dict:
                 new_model_id = current_model_id
 
-            # 切换策略（冷却时间1秒）
+            # 切换策略
             if (new_model_id != current_model_id):
                 current_model_id = new_model_id
                 current_policy = policy_dict[current_model_id]
