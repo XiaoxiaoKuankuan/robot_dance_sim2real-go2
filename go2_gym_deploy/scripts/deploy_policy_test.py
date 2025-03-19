@@ -1,6 +1,4 @@
-import glob
-import pathlib
-import sys
+
 import time
 import torch
 import lcm
@@ -48,6 +46,7 @@ def load_and_run_policy(experiment_name="default_experiment"):
 
     # 主控制循环
     obs = hardware_agent.get_obs()
+    timestep = 0
     try:
         current_policy = policy_dict[0]  # 默认策略
         current_model_id = 0
@@ -78,7 +77,8 @@ def load_and_run_policy(experiment_name="default_experiment"):
             elapsed = time.time() - start_time
             if elapsed < 0.02:  # 50Hz
                 time.sleep(0.02 - elapsed)
-
+            if timestep % 100 == 0: print(f'frq: {1 / (time.time() - start_time)} Hz')
+            timestep += 1
     except KeyboardInterrupt:
         print("\n用户中断...")
     finally:

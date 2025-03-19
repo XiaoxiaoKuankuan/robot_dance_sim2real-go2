@@ -1,5 +1,6 @@
 import time
-
+import os
+import csv
 import lcm
 import numpy as np
 import torch
@@ -31,6 +32,13 @@ def class_to_dict(obj) -> dict:
 class LCMAgent():
     def __init__(self, se):
 
+        # 定义保存路径
+        save_dir = 'data'  
+        self.file_path = os.path.join(save_dir, 'robot_data.csv')
+
+        # 如果目录不存在，创建目录
+        os.makedirs(save_dir, exist_ok=True)
+
         self.se = se  # State Estimator（状态估计器）
 
         self.dt = 0.02
@@ -54,15 +62,10 @@ class LCMAgent():
                                 -0.1, 0.8, -1.5,
                                 0.1, 0.8, -1.5,
                                 -0.1, 0.8, -1.5]  # LF RF LH RH  0.8
-        joint_names = [
-            "FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
-            "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
-            "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint",
-            "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint", ]
+
         # 改成go2的
         self.p_gains = 20
         self.d_gains = 0.5
-
 
         self.actions = torch.zeros(12)
         self.last_actions = torch.zeros(12)
@@ -76,7 +79,7 @@ class LCMAgent():
         self.torques = np.zeros(12)
 
         self.joint_idxs = self.se.joint_idxs  # RF LF RH LH
-
+        self.reset()
 
     def get_obs(self):
 
@@ -89,10 +92,11 @@ class LCMAgent():
                                 self.gravity_vector.reshape(1, -1),
                              (self.dof_pos - self.default_dof_pos).reshape(1, -1) * self.scales["dof_pos"],
                              self.dof_vel.reshape(1, -1) * self.scales["dof_vel"],
-                             self.actions.cpu().numpy().reshape(1, -1)  # 确保 actions 是 NumPy
+                             self.actions.detach().numpy().reshape(1, -1)  # 确保 actions 是 NumPy
                              ), axis=1)
         # 裁剪观察，限制在 self.scales["clip_observations"] 范围内
         ob = np.clip(ob, -self.scales["clip_observations"], self.scales["clip_observations"])
+        # print("ob is :", ob)
 
         return torch.tensor(ob, device=self.device).float()
 
@@ -104,8 +108,7 @@ class LCMAgent():
         joint_pos_target += self.default_dof_pos  # 偏移量+默认关节角度
         self.joint_pos_target = joint_pos_target[self.joint_idxs]  # 调整腿顺序
         self.joint_vel_target = np.zeros(12)
-        # print(f'cjp {self.joint_pos_target}')
-
+        # print('joint_pos_target:', self.joint_pos_target)
         command_for_robot.q_des = self.joint_pos_target
         command_for_robot.qd_des = self.joint_vel_target
         command_for_robot.kp = np.full(12, self.p_gains)
@@ -136,10 +139,14 @@ class LCMAgent():
         # self.actions_scaled = self.actions * self.scales["action_scale"]
 
         self.publish_action(self.actions, hard_reset=hard_reset)  # 由lcm将神经网络输出的action传入c++ sdk
-        time.sleep(max(self.dt - (time.time() - self.time), 0))  # 确保固定的循环频率（50Hz）
-        if self.timestep % 100 == 0: print(f'frq: {1 / (time.time() - self.time)} Hz')
-        self.time = time.time()
+        # time.sleep(max(self.dt - (time.time() - self.time), 0))  # 确保固定的循环频率（50Hz）
+        # if self.timestep % 100 == 0: print(f'frq: {1 / (time.time() - self.time)} Hz')
+        # self.time = time.time()
         obs = self.get_obs()
+
+        with open(self.file_path, mode='a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(np.concatenate((obs.detach().cpu().numpy().flatten(), self.joint_pos_target.flatten())))
 
         infos = {
             "joint_pos": self.dof_pos[np.newaxis, :],  # 关节位置
@@ -150,5 +157,5 @@ class LCMAgent():
             "body_angular_vel": self.body_angular_vel[np.newaxis, :],  # 机身角速度
         }
 
-        self.timestep += 1
+        # self.timestep += 1
         return obs, None, None, infos

@@ -134,7 +134,7 @@ class StateEstimator:
                          self.right_upper_switch])
 
     def get_dof_pos(self):
-        # print("dofposquery", self.joint_pos[self.joint_idxs])
+        print("dofposquery", self.joint_pos[self.joint_idxs])
         return self.joint_pos[self.joint_idxs]
 
     def get_dof_vel(self):
