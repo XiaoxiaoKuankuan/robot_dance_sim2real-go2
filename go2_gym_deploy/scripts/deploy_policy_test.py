@@ -21,9 +21,6 @@ MODEL_PATHS = {
 def load_and_run_policy(experiment_name="default_experiment"):
     # 初始化状态估计器
     se = StateEstimator(lc)
-    if not hardware_agent.is_initialized():
-        print("硬件代理初始化失败！")
-        return
 
     try:
         # 预加载所有策略模型
