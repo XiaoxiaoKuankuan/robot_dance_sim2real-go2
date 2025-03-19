@@ -91,13 +91,14 @@ class LCMAgent():
         self.dof_pos = self.se.get_dof_pos()
         self.dof_vel = self.se.get_dof_vel()
 
-
         ob = np.concatenate(( self.body_angular_vel.reshape(1, -1) * self.scales["ang_vel"],
                                 self.gravity_vector.reshape(1, -1),
                              (self.dof_pos - self.default_dof_pos).reshape(1, -1) * self.scales["dof_pos"],
                              self.dof_vel.reshape(1, -1) * self.scales["dof_vel"],
                              self.actions.cpu().numpy().reshape(1, -1)  # 确保 actions 是 NumPy
                              ), axis=1)
+        # 裁剪观察，限制在 self.scales["clip_observations"] 范围内
+        ob = np.clip(ob, -self.scales["clip_observations"], self.scales["clip_observations"])
 
         return torch.tensor(ob, device=self.device).float()
 
