@@ -28,7 +28,6 @@ def class_to_dict(obj) -> dict:
         result[key] = element
     return result
 
-
 class LCMAgent():
     def __init__(self, se):
 
@@ -79,6 +78,11 @@ class LCMAgent():
         self.torques = np.zeros(12)
         self.delay_factor = 0.2  # 0.3
 
+        # 关节的上下限范围（单位：弧度）
+        self.joint_up_limit = np.array([0.8378, 3.4907, -0.83776, 0.8378, 3.4907, -0.83776,
+                                        0.8378, 4.5379, -0.83776, 0.8378, 4.5379, -0.83776])
+        self.joint_low_limit = np.array([-0.8378, -1.5708, -2.7227, -0.8378, -1.5708, -2.7227,
+                                         -0.8378, -0.5236, -2.7227, -0.8378, -0.5236, -2.7227])
         self.joint_idxs = self.se.joint_idxs  # RF LF RH LH
         self.reset()
 
@@ -102,6 +106,12 @@ class LCMAgent():
         self.percent_3 = 0
         self.percent_4 = 0
         self.firstRun = True
+
+    def apply_joint_limits(self, joint_pos):
+        """应用关节限位"""
+        # 将每个关节的位置限制在其最小和最大限位之间
+        joint_pos = np.clip(joint_pos, self.joint_low_limit, self.joint_up_limit)
+        return joint_pos
 
     def get_obs(self):
 
@@ -180,19 +190,19 @@ class LCMAgent():
         if TEST:
             self.test_action()
             print('actions:', self.actions_scaled)
-        print('网络输出的actions:', actions)
+        # print('网络输出的actions:', actions)
         clip_actions = self.scales["clip_actions"]/self.scales["action_scale"]
         self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
 
 
-        self.actions = self.last_actions * self.delay_factor + self.actions * (1 - self.delay_factor) # 滤波延迟
-        self.last_actions = self.actions.clone()
+        # self.actions = self.last_actions * self.delay_factor + self.actions * (1 - self.delay_factor) # 滤波延迟
+        # self.last_actions = self.actions.clone()
 
         # self.last_actions = self.actions[:]
         self.actions_scaled= ( self.actions[0, :12].detach().cpu().numpy() * self.scales["action_scale"]).flatten()
         
         self.actions_scaled += self.default_dof_pos  # 偏移量+默认关节角度
-
+        self.actions_scaled = self.apply_joint_limits(self.actions_scaled)  # 限位
         self.joint_pos_target = self.actions_scaled[self.joint_idxs]  # 调整腿顺序
         # print('joint_pos_target:', self.joint_pos_target)
         self.publish_action()  # 由lcm将神经网络输出的action传入c++ sdk
