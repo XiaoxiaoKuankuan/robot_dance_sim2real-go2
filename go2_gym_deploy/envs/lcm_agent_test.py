@@ -117,7 +117,7 @@ class LCMAgent():
 
         # self.body_angular_vel = self.se.get_body_angular_vel()
         self.body_angular_vel = np.array(self.se.get_body_angular_vel())
-        print("self.body_angular_vel is :", self.body_angular_vel)
+        # print("self.body_angular_vel is :", self.body_angular_vel)
         self.gravity_vector = self.se.get_gravity_vector()
         self.dof_pos = self.se.get_dof_pos()
         self.dof_vel = self.se.get_dof_vel()
@@ -212,9 +212,11 @@ class LCMAgent():
 
         obs = self.get_obs()
 
-        with open(self.file_path, mode='a', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow(np.concatenate((obs.detach().cpu().numpy().flatten(), self.joint_pos_target.flatten())))
+        data = np.concatenate((obs.detach().cpu().numpy().flatten(), self.joint_pos_target.flatten()))
+
+        with open(self.file_path, 'a') as f:  # 'a' 代表追加模式
+            np.savetxt(f, data.reshape(1, -1), delimiter=",")  # `reshape(1, -1)` 确保数据按行存储
+
 
         infos = {
             "joint_pos": self.dof_pos[np.newaxis, :],  # 关节位置
