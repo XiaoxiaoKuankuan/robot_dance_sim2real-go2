@@ -251,16 +251,18 @@ To be continue ...
 - [x] Deploy on Jeston Orin Nano
 - [ ] Deploy through Docker
 ---
-## PLUS
+## PLUS  代码和运行说明
 * 数据保存在：
 * /robot_dance_sim2real-go2/go2_gym_deploy/scripts/data/robot_data.csv
 * 数据格式为obs（42维） + 最终输入到底层sdk的actions（12维）
 
 
 
-* 主要代码有：
+# 主要代码有：
 
-lcm_position_go2.cpp 建立 LCM 和 Unitree SDK 之间的通信
+lcm_position_go2.cpp 
+
+建立 LCM 和 Unitree SDK 之间的通信
 
     线程 1 ： lcm send 线程
     此线程作用：实时通过unitree_sdk2读取low_state信号和joystick信号，并发送给lcm中间件
@@ -272,7 +274,8 @@ lcm_position_go2.cpp 建立 LCM 和 Unitree SDK 之间的通信
     此线程作用：初始化low_cmd，经过合理的状态机后，电机将执行神经网络的输出
 
 go2_gym_deploy/scripts/deploy_policy_test.py
-    加载并运行 policy
+    
+加载并运行 policy
 
 go2_gym_deploy/envs/lcm_agent_test.py
 
@@ -285,12 +288,24 @@ go2_gym_deploy/envs/lcm_agent_test.py
 
 
 
-* 运行流程：
+# 运行流程：
+
 
 cd go2_gym_deploy/build
 sudo ./lcm_position_go2 eth0
 
+根据终端提示按回车键继续，如果同时按下了 L2 和 B，掉电，再摁L2 和 B，退出程序
+保持代码允许
+
 cd go2_gym_deploy/scripts
 python deploy_policy_test.py
 
-如果同时按下了 L2 和 B，退出程序
+摁R2开始执行默认模型程序（不知道为什么有时候R2默认摁下了，启动代码便直接允许程序）
+
+发生任何意外多摁几次L2 + B  进入阻尼模式
+
+手柄映射：
+*  mode 0 : A  模型1
+* mode 1 : B  模型2
+* mode 2 : X  模型3
+* mode 3 : Y  模型4
