@@ -9,7 +9,7 @@ import torch
 from go2_gym_deploy.lcm_types.pd_tau_targets_lcmt import pd_tau_targets_lcmt
 
 lc = lcm.LCM("udpm://239.255.76.67:7667?ttl=255")
-TEST = True
+TEST = False
 
 def class_to_dict(obj) -> dict:
     if not hasattr(obj, "__dict__"):
@@ -149,7 +149,7 @@ class LCMAgent():
 
     def test_action(self):
         if self.firstRun:
-            self.startPos = self.se.get_dof_pos().flatten()
+            self.startPos = self.se.get_dof_pos()
             self.firstRun = False
 
         self.percent_1 += 1.0 / self.duration_1
@@ -177,13 +177,13 @@ class LCMAgent():
         if TEST:
             self.test_action()
             print('actions:', self.actions_scaled)
-
-        # clip_actions = self.scales["clip_actions"]/self.scales["action_scale"]
-        # self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
-        # # self.last_actions = self.actions[:]
-        # self.actions_scaled= ( self.actions[0, :12].detach().cpu().numpy() * self.scales["action_scale"]).flatten()
-        #
-        # self.actions_scaled += self.default_dof_pos  # 偏移量+默认关节角度
+        print('actions:', actions)  
+        clip_actions = self.scales["clip_actions"]/self.scales["action_scale"]
+        self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
+        # self.last_actions = self.actions[:]
+        self.actions_scaled= ( self.actions[0, :12].detach().cpu().numpy() * self.scales["action_scale"]).flatten()
+        
+        self.actions_scaled += self.default_dof_pos  # 偏移量+默认关节角度
 
         self.joint_pos_target = self.actions_scaled[self.joint_idxs]  # 调整腿顺序
         print('joint_pos_target:', self.joint_pos_target)
