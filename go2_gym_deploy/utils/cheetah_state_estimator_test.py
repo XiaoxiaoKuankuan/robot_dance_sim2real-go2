@@ -115,6 +115,12 @@ class StateEstimator:
     def get_body_angular_vel(self):
         self.body_ang_vel = self.smoothing_ratio * np.mean(self.deuler_history / self.dt_history, axis=0) + (
                 1 - self.smoothing_ratio) * self.body_ang_vel
+        print("微分得到的self.body_ang_vel is :", self.body_ang_vel)
+        self.body_ang_vel = self.base_ang_vel_w
+        print("直接获取的base_ang_vel_w is :", self.base_ang_vel_w)
+        print("self.dt_history:", self.dt_history)
+        print("self.deuler_history:", self.deuler_history)
+
         return self.body_ang_vel
 
     def get_gravity_vector(self):
@@ -169,7 +175,7 @@ class StateEstimator:
     def _imu_cb(self, channel, data):
         # print("update imu")
         msg = state_estimator_lcmt.decode(data)
-
+        print("msg.rpy:", msg.rpy)
         self.euler = np.array(msg.rpy)
 
         self.R = get_rotation_matrix_from_rpy(self.euler)  # # 计算旋转矩阵
@@ -183,6 +189,8 @@ class StateEstimator:
 
         self.buf_idx += 1
         self.euler_prev = np.array(msg.rpy)
+
+        self.base_ang_vel_w = msg.omegaWorld  # 直接获取机身角速度
 
 
 

@@ -117,7 +117,7 @@ class LCMAgent():
                              ), axis=1)
         # 裁剪观察，限制在 self.scales["clip_observations"] 范围内
         ob = np.clip(ob, -self.scales["clip_observations"], self.scales["clip_observations"])
-        # print("ob is :", ob)
+        print("dof_pos is :", self.dof_pos)
 
         return torch.tensor(ob, device=self.device).float()
 
@@ -186,7 +186,7 @@ class LCMAgent():
         self.actions_scaled += self.default_dof_pos  # 偏移量+默认关节角度
 
         self.joint_pos_target = self.actions_scaled[self.joint_idxs]  # 调整腿顺序
-        print('joint_pos_target:', self.joint_pos_target)
+        # print('joint_pos_target:', self.joint_pos_target)
         self.publish_action()  # 由lcm将神经网络输出的action传入c++ sdk
         # time.sleep(max(self.dt - (time.time() - self.time), 0))  # 确保固定的循环频率（50Hz）
         # if self.timestep % 100 == 0: print(f'frq: {1 / (time.time() - self.time)} Hz')
