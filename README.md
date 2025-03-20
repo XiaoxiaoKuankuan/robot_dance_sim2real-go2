@@ -250,3 +250,47 @@ To be continue ...
 - [x] Do not inherit config and env from go1_gym, build customized config and env files for Go2
 - [x] Deploy on Jeston Orin Nano
 - [ ] Deploy through Docker
+---
+## PLUS
+* 数据保存在：
+* /robot_dance_sim2real-go2/go2_gym_deploy/scripts/data/robot_data.csv
+* 数据格式为obs（42维） + 最终输入到底层sdk的actions（12维）
+
+
+
+* 主要代码有：
+
+lcm_position_go2.cpp 建立 LCM 和 Unitree SDK 之间的通信
+
+    线程 1 ： lcm send 线程
+    此线程作用：实时通过unitree_sdk2读取low_state信号和joystick信号，并发送给lcm中间件
+    -------------------------------------------------------------------------------
+    线程 2 ： lcm receive 线程
+    此线程作用：实时通过lcm中间件读取pytorch神经网络输出的期望关节控制信号（q, qd, kp, kd, tau_ff）
+    -------------------------------------------------------------------------------
+    线程 3 ： unitree_sdk2 command write 线程
+    此线程作用：初始化low_cmd，经过合理的状态机后，电机将执行神经网络的输出
+
+go2_gym_deploy/scripts/deploy_policy_test.py
+    加载并运行 policy
+
+go2_gym_deploy/envs/lcm_agent_test.py
+
+    定义智能体的一些函数:
+      ● get_obs：订阅 LowState，获取机器人状态：
+        ○ StateEstimator_test 从 lowstate_subscriber 订阅的数据中提取
+      ● publish_action:由lcm将神经网络输出的action传入c++ sdk
+      ● reset
+      ● step
+
+
+
+* 运行流程：
+
+cd go2_gym_deploy/build
+sudo ./lcm_position_go2 eth0
+
+cd go2_gym_deploy/scripts
+python deploy_policy_test.py
+
+如果同时按下了 L2 和 B，退出程序
