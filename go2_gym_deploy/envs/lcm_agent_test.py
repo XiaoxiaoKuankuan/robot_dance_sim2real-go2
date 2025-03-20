@@ -179,7 +179,7 @@ class LCMAgent():
         if TEST:
             self.test_action()
             print('actions:', self.actions_scaled)
-        print('actions:', actions)  
+        print('网络输出的actions:', actions)
         clip_actions = self.scales["clip_actions"]/self.scales["action_scale"]
         self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
         # self.last_actions = self.actions[:]

@@ -114,9 +114,9 @@ class StateEstimator:
         return self.body_lin_vel
 
     def get_body_angular_vel(self):
-        self.body_ang_vel = self.smoothing_ratio * np.mean(self.deuler_history / (self.dt_history+0.000001), axis=0) + (
+        self.body_ang_vel = self.smoothing_ratio * np.mean(self.deuler_history / (self.dt_history), axis=0) + (
                 1 - self.smoothing_ratio) * self.body_ang_vel
-        print("微分得到的self.body_ang_vel is :", self.body_ang_vel)
+        # print("微分得到的self.body_ang_vel is :", self.body_ang_vel)
         # self.body_ang_vel = self.base_ang_vel_w
         
         # print("self.dt_history:", self.dt_history)
@@ -141,7 +141,7 @@ class StateEstimator:
                          self.right_upper_switch])
 
     def get_dof_pos(self):
-        print("dofposquery", self.joint_pos[self.joint_idxs])
+        # print("dofposquery", self.joint_pos[self.joint_idxs])
         return self.joint_pos[self.joint_idxs]
 
     def get_dof_vel(self):
@@ -184,15 +184,18 @@ class StateEstimator:
         self.contact_state = 1.0 * (np.array(msg.contact_estimate) > 200)
 
         self.deuler_history[self.buf_idx % self.smoothing_length, :] = msg.rpy - self.euler_prev  # 存储 欧拉角变化量
-        self.dt_history[self.buf_idx % self.smoothing_length] = time.time() - self.timuprev # 存储 时间间隔
+        dt = time.time() - self.timuprev
+        if dt < 1e-6:  # 避免除零
+            dt = 1e-6
+        self.dt_history[self.buf_idx % self.smoothing_length] = dt
 
         self.timuprev = time.time()
 
         self.buf_idx += 1
         self.euler_prev = np.array(msg.rpy)
 
-        # self.base_ang_vel_w = msg.omegaWorld  # 直接获取机身角速度
-        # print("直接获取的base_ang_vel_w is :", self.base_ang_vel_w)
+        self.base_ang_vel_w = msg.omegaWorld  # 直接获取机身角速度
+        print("直接获取的base_ang_vel_w is :", self.base_ang_vel_w)
 
 
     def _rc_command_cb(self, channel, data):
