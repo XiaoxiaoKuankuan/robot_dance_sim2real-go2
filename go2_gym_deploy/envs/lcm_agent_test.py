@@ -9,7 +9,7 @@ import torch
 from go2_gym_deploy.lcm_types.pd_tau_targets_lcmt import pd_tau_targets_lcmt
 
 lc = lcm.LCM("udpm://239.255.76.67:7667?ttl=255")
-
+TEST = True
 
 def class_to_dict(obj) -> dict:
     if not hasattr(obj, "__dict__"):
@@ -68,7 +68,7 @@ class LCMAgent():
         self.d_gains = 0.5
 
         self.actions = torch.zeros(12)
-        self.last_actions = torch.zeros(12)
+        # self.last_actions = torch.zeros(12)
         self.gravity_vector = np.zeros(3)
         self.dof_pos = np.zeros(12)
         self.dof_vel = np.zeros(12)
@@ -80,6 +80,27 @@ class LCMAgent():
 
         self.joint_idxs = self.se.joint_idxs  # RF LF RH LH
         self.reset()
+
+        # 测试动作参数
+        self._targetPos_1 = np.array([[0.0, 1.36, -2.65], [0.0, 1.36, -2.65],
+                                      [-0.2, 1.36, -2.65], [0.2, 1.36, -2.65]]).flatten()
+
+        self._targetPos_2 = np.array([[0.0, 0.67, -1.3], [0.0, 0.67, -1.3],
+                                      [0.0, 0.67, -1.3], [0.0, 0.67, -1.3]]).flatten()
+
+        self._targetPos_3 = np.array([[-0.35, 1.36, -2.65], [0.35, 1.36, -2.65],
+                                      [-0.5, 1.36, -2.65], [0.5, 1.36, -2.65]]).flatten()
+
+        self.startPos = np.zeros(12)
+        self.duration_1 = 500
+        self.duration_2 = 500
+        self.duration_3 = 1000
+        self.duration_4 = 900
+        self.percent_1 = 0
+        self.percent_2 = 0
+        self.percent_3 = 0
+        self.percent_4 = 0
+        self.firstRun = True
 
     def get_obs(self):
 
@@ -100,15 +121,12 @@ class LCMAgent():
 
         return torch.tensor(ob, device=self.device).float()
 
-    def publish_action(self, action, hard_reset=False):
+    def publish_action(self):
 
         command_for_robot = pd_tau_targets_lcmt()
-        joint_pos_target = (action[0, :12].detach().cpu().numpy() * self.scales["action_scale"]).flatten()
 
-        joint_pos_target += self.default_dof_pos  # 偏移量+默认关节角度
-        self.joint_pos_target = joint_pos_target[self.joint_idxs]  # 调整腿顺序
         self.joint_vel_target = np.zeros(12)
-        # print('joint_pos_target:', self.joint_pos_target)
+
         command_for_robot.q_des = self.joint_pos_target
         command_for_robot.qd_des = self.joint_vel_target
         command_for_robot.kp = np.full(12, self.p_gains)
@@ -117,9 +135,6 @@ class LCMAgent():
         command_for_robot.se_contactState = np.zeros(4)
         command_for_robot.timestamp_us = int(time.time() * 10 ** 6)
         command_for_robot.id = 0
-
-        if hard_reset:
-            command_for_robot.id = -1
 
         # 计算控制力矩  没有直接用于 command_for_robot，可能是仅用于监测或记录
         self.torques = (self.joint_pos_target - self.dof_pos) * self.p_gains + (self.joint_vel_target - self.dof_vel) * self.d_gains
@@ -132,16 +147,51 @@ class LCMAgent():
         self.timestep = 0
         return self.get_obs()
 
-    def step(self, actions, hard_reset=False):
-        clip_actions = self.scales["clip_actions"]/self.scales["action_scale"]
-        self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
-        self.last_actions = self.actions[:]
-        # self.actions_scaled = self.actions * self.scales["action_scale"]
+    def test_action(self):
+        if self.firstRun:
+            self.startPos = self.se.get_dof_pos().flatten()
+            self.firstRun = False
 
-        self.publish_action(self.actions, hard_reset=hard_reset)  # 由lcm将神经网络输出的action传入c++ sdk
+        self.percent_1 += 1.0 / self.duration_1
+        self.percent_1 = min(self.percent_1, 1)
+        if self.percent_1 < 1:
+            self.actions_scaled = (1 - self.percent_1) * self.startPos + self.percent_1 * self._targetPos_1
+
+        if (self.percent_1 == 1) and (self.percent_2 <= 1):
+            self.percent_2 += 1.0 / self.duration_2
+            self.percent_2 = min(self.percent_2, 1)
+            self.actions_scaled = (1 - self.percent_2) * self._targetPos_1 + self.percent_2 * self._targetPos_2
+
+        if (self.percent_1 == 1) and (self.percent_2 == 1) and (self.percent_3 < 1):
+            self.percent_3 += 1.0 / self.duration_3
+            self.percent_3 = min(self.percent_3, 1)
+            self.actions_scaled = self._targetPos_2.copy()
+
+        if (self.percent_1 == 1) and (self.percent_2 == 1) and (self.percent_3 == 1) and (self.percent_4 <= 1):
+            self.percent_4 += 1.0 / self.duration_4
+            self.percent_4 = min(self.percent_4, 1)
+            self.actions_scaled = (1 - self.percent_4) * self._targetPos_2 + self.percent_4 * self._targetPos_3
+
+    def step(self, actions):
+
+        if TEST:
+            self.test_action()
+            print('actions:', self.actions_scaled)
+
+        # clip_actions = self.scales["clip_actions"]/self.scales["action_scale"]
+        # self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
+        # # self.last_actions = self.actions[:]
+        # self.actions_scaled= ( self.actions[0, :12].detach().cpu().numpy() * self.scales["action_scale"]).flatten()
+        #
+        # self.actions_scaled += self.default_dof_pos  # 偏移量+默认关节角度
+
+        self.joint_pos_target = self.actions_scaled[self.joint_idxs]  # 调整腿顺序
+        print('joint_pos_target:', self.joint_pos_target)
+        self.publish_action()  # 由lcm将神经网络输出的action传入c++ sdk
         # time.sleep(max(self.dt - (time.time() - self.time), 0))  # 确保固定的循环频率（50Hz）
         # if self.timestep % 100 == 0: print(f'frq: {1 / (time.time() - self.time)} Hz')
         # self.time = time.time()
+
         obs = self.get_obs()
 
         with open(self.file_path, mode='a', newline='') as file:
