@@ -254,7 +254,7 @@ To be continue ...
 ## PLUS  代码和运行说明
 * 数据保存在：
 * /robot_dance_sim2real-go2/go2_gym_deploy/scripts/data/robot_data.csv
-* 数据格式为obs（42维） + 最终输入到底层sdk的actions（12维）
+* 数据格式为obs（42维：按LF RF LH RH 这个顺序排列的） + 最终输入到底层sdk的actions（12维，腿的顺序变成了RF LF RH LH）
 
 
 

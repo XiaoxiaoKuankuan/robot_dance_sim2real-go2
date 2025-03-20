@@ -68,7 +68,7 @@ class LCMAgent():
         self.d_gains = 0.5
 
         self.actions = torch.zeros(12)
-        # self.last_actions = torch.zeros(12)
+        self.last_actions = torch.zeros(12)
         self.gravity_vector = np.zeros(3)
         self.dof_pos = np.zeros(12)
         self.dof_vel = np.zeros(12)
@@ -77,6 +77,7 @@ class LCMAgent():
         self.joint_pos_target = np.zeros(12)
         self.joint_vel_target = np.zeros(12)
         self.torques = np.zeros(12)
+        self.delay_factor = 0.2  # 0.3
 
         self.joint_idxs = self.se.joint_idxs  # RF LF RH LH
         self.reset()
@@ -182,6 +183,11 @@ class LCMAgent():
         print('网络输出的actions:', actions)
         clip_actions = self.scales["clip_actions"]/self.scales["action_scale"]
         self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
+
+
+        self.actions = self.last_actions * self.delay_factor + self.actions * (1 - self.delay_factor) # 滤波延迟
+        self.last_actions = self.actions.clone()
+
         # self.last_actions = self.actions[:]
         self.actions_scaled= ( self.actions[0, :12].detach().cpu().numpy() * self.scales["action_scale"]).flatten()
         
