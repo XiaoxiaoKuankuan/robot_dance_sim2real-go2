@@ -75,6 +75,7 @@ class StateEstimator:
 
         self.body_lin_vel = np.zeros(3)
         self.body_ang_vel = np.zeros(3)
+        self.base_ang_vel_w = np.zeros(3)
         self.smoothing_ratio = 0.2
 
         self.mode = 0
@@ -113,13 +114,13 @@ class StateEstimator:
         return self.body_lin_vel
 
     def get_body_angular_vel(self):
-        self.body_ang_vel = self.smoothing_ratio * np.mean(self.deuler_history / self.dt_history, axis=0) + (
+        self.body_ang_vel = self.smoothing_ratio * np.mean(self.deuler_history / (self.dt_history+0.000001), axis=0) + (
                 1 - self.smoothing_ratio) * self.body_ang_vel
         print("微分得到的self.body_ang_vel is :", self.body_ang_vel)
-        self.body_ang_vel = self.base_ang_vel_w
-        print("直接获取的base_ang_vel_w is :", self.base_ang_vel_w)
-        print("self.dt_history:", self.dt_history)
-        print("self.deuler_history:", self.deuler_history)
+        # self.body_ang_vel = self.base_ang_vel_w
+        
+        # print("self.dt_history:", self.dt_history)
+        # print("self.deuler_history:", self.deuler_history)
 
         return self.body_ang_vel
 
@@ -175,7 +176,7 @@ class StateEstimator:
     def _imu_cb(self, channel, data):
         # print("update imu")
         msg = state_estimator_lcmt.decode(data)
-        print("msg.rpy:", msg.rpy)
+        # print("msg.rpy:", msg.rpy)
         self.euler = np.array(msg.rpy)
 
         self.R = get_rotation_matrix_from_rpy(self.euler)  # # 计算旋转矩阵
@@ -190,8 +191,8 @@ class StateEstimator:
         self.buf_idx += 1
         self.euler_prev = np.array(msg.rpy)
 
-        self.base_ang_vel_w = msg.omegaWorld  # 直接获取机身角速度
-
+        # self.base_ang_vel_w = msg.omegaWorld  # 直接获取机身角速度
+        # print("直接获取的base_ang_vel_w is :", self.base_ang_vel_w)
 
 
     def _rc_command_cb(self, channel, data):

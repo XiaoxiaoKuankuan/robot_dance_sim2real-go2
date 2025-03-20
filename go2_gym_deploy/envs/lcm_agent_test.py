@@ -104,7 +104,9 @@ class LCMAgent():
 
     def get_obs(self):
 
-        self.body_angular_vel = self.se.get_body_angular_vel()
+        # self.body_angular_vel = self.se.get_body_angular_vel()
+        self.body_angular_vel = np.array(self.se.get_body_angular_vel())
+        print("self.body_angular_vel is :", self.body_angular_vel)
         self.gravity_vector = self.se.get_gravity_vector()
         self.dof_pos = self.se.get_dof_pos()
         self.dof_vel = self.se.get_dof_vel()
@@ -117,7 +119,7 @@ class LCMAgent():
                              ), axis=1)
         # 裁剪观察，限制在 self.scales["clip_observations"] 范围内
         ob = np.clip(ob, -self.scales["clip_observations"], self.scales["clip_observations"])
-        print("dof_pos is :", self.dof_pos)
+        # print("dof_pos is :", self.dof_pos)
 
         return torch.tensor(ob, device=self.device).float()
 
