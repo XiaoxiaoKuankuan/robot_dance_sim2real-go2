@@ -412,7 +412,7 @@ void Custom::LowCmdWrite(){
             low_cmd.motor_cmd()[i].q() = 0;
             low_cmd.motor_cmd()[i].dq() = 0;
             low_cmd.motor_cmd()[i].kp() = 0;
-            low_cmd.motor_cmd()[i].kd() = 5;
+            low_cmd.motor_cmd()[i].kd() = 2;
             low_cmd.motor_cmd()[i].tau() = 0;
         }  
         std::cout << "======= Switched to Damping Mode, and the thread is sleeping ========"<<std::endl;

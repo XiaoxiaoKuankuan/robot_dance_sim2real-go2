@@ -204,6 +204,7 @@ class LCMAgent():
         
         self.actions_scaled += self.default_dof_pos  # 偏移量+默认关节角度
         self.actions_scaled = self.apply_joint_limits(self.actions_scaled)  # 限位
+
         self.joint_pos_target = self.actions_scaled[self.joint_idxs]  # 调整腿顺序
         # print('joint_pos_target:', self.joint_pos_target)
         self.publish_action()  # 由lcm将神经网络输出的action传入c++ sdk
