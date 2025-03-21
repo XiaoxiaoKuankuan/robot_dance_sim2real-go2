@@ -33,6 +33,7 @@ def load_and_run_policy(experiment_name="default_experiment"):
     # 初始化硬件代理
     hardware_agent = LCMAgent(se)
     se.spin()
+    print(f"R2 初始状态: {se.right_lower_right_switch_pressed}")  # 调试输出
 
     # 等待用户按下 R2 才开始
     print("等待按下 R2 键以启动策略...")
